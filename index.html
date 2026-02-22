@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>本地音乐播放器｜全按钮修复最终版</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
+  body{
+    background:center center / cover no-repeat fixed;
+    transition:background 0.8s ease;
+    height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;overflow:hidden
+  }
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1}
+
+  /* 顶部按钮 - 最高层级，确保不被遮挡 */
+  .top-btn-group{
+    position:fixed;top:24px;left:0;right:0;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:0 10px;z-index:99999;
+  }
+  .top-btn{
+    background:rgba(255,255,255,0.12);backdrop-filter:blur(12px);
+    border:none;color:#fff;border-radius:12px;white-space:nowrap;
+    padding:8px 10px;font-size:13px;cursor:pointer;
+    transition:all 0.2s;-webkit-tap-highlight-color:transparent;
+    z-index:99999;
+  }
+  .top-btn.icon-btn{
+    width:40px;height:40px;padding:0;border-radius:50%;
+    display:grid;place-items:center;font-size:18px;
+  }
+  .top-btn:active{transform:scale(0.95)}
+
+  /* Toast 轻提示 */
+  .toast{
+    position:fixed;bottom:120px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,0.8);color:#fff;padding:10px 20px;
+    border-radius:8px;font-size:14px;z-index:999999;
+    opacity:0;transition:opacity 0.3s;pointer-events:none;
+  }
+  .toast.show{opacity:1;pointer-events:auto}
+
+  /* 弹窗 - 最高层级 */
+  .modal{
+    position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(18px);
+    z-index:99998;display:none;align-items:center;justify-content:center;
+    opacity:0;transition:opacity 0.3s;
+  }
+  .modal.show{display:flex;opacity:1}
+  .modal-box{
+    width:92%;max-width:420px;background:#1a1c2e;
+    border-radius:20px;padding:26px;max-height:85vh;
+    overflow-y:auto;z-index:99999;
+  }
+  .modal-header{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:20px;
+  }
+  .close-modal{
+    background:none;border:none;color:#fff;font-size:20px;
+    cursor:pointer;width:32px;height:32px;
+    display:grid;place-items:center;
+    border-radius:50%;transition:background 0.2s;
+  }
+  .close-modal:active{background:rgba(255,255,255,0.1)}
+
+  /* 搜索框 */
+  .search-box{
+    width:100%;padding:10px 14px;margin-bottom:10px;
+    background:rgba(255,255,255,0.08);border:none;border-radius:12px;
+    color:#fff;font-size:14px;outline:none;
+  }
+  .search-box::placeholder{color:rgba(255,255,255,0.5)}
+
+  /* 教程 & FAQ 样式 */
+  .guide-content,.faq-content{line-height:1.6}
+  .guide-content h4{color:#4fc3f7;margin:16px 0 8px;font-size:15px}
+  .guide-content p,.faq-content p{margin:4px 0;color:rgba(255,255,255,0.85);font-size:14px}
+  .guide-content .step{padding:10px 14px;background:rgba(255,255,255,0.05);border-radius:10px;margin:6px 0}
+  .faq-content .qa{margin:10px 0;padding:12px;background:rgba(255,255,255,0.05);border-radius:12px}
+  .faq-content .q{color:#4fc3f7;font-weight:bold;margin-bottom:4px}
+  .faq-content .a{color:rgba(255,255,255,0.85)}
+
+  /* 设置样式 */
+  .about-desc{margin:10px 0 16px;font-size:12px;color:rgba(255,255,255,0.6);text-align:center}
+  .setting-item{padding:12px;margin:8px 0;background:rgba(255,255,255,0.05);border-radius:12px;cursor:pointer}
+  .setting-item:active{transform:scale(0.96)}
+  .bg-time-group{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:10px 0}
+  .bg-time-btn{padding:6px 10px;background:rgba(255,255,255,0.1);border:none;color:#fff;border-radius:8px}
+  .bg-time-btn.active{background:#409eff}
+  .close-set{width:100%;margin-top:16px;padding:10px;background:#409eff;border:none;border-radius:10px;color:#fff}
+
+  /* 歌单样式 */
+  .local-btn{width:100%;padding:10px;background:rgba(255,255,255,0.1);border:none;border-radius:12px;color:#fff;margin-bottom:12px}
+  .local-btn:active{transform:scale(0.98)}
+  .section{font-size:13px;color:#aaa;margin-bottom:8px}
+  .music-list{display:flex;flex-direction:column;gap:6px}
+  .music-item{padding:10px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:space-between;align-items:center}
+  .music-name{
+    white-space:nowrap;overflow:hidden;
+    max-width:200px;
+  }
+  .music-name.scroll{
+    animation:scroll 8s linear infinite
+  }
+  @keyframes scroll{
+    0%{transform:translateX(0)}
+    50%{transform:translateX(-100%)}
+    100%{transform:translateX(0)}
+  }
+  .btn-group{display:flex;gap:6px}
+  .share-btn{background:#409eff;border:none;color:#fff;border-radius:6px;padding:4px 8px;font-size:12px}
+  .del-btn{background:#f56c6c;border:none;color:#fff;border-radius:6px;padding:4px 8px;font-size:12px}
+  #fileInput{display:none}
+
+  /* 歌词区 */
+  .lyric-box{flex:1;width:100%;max-width:500px;padding:60px 20px 130px;text-align:center;overflow-y:auto;scroll-behavior:smooth}
+  .lyric-box::-webkit-scrollbar{display:none}
+  .lyric{font-size:16px;line-height:2.8;color:rgba(255,255,255,0.4);transition:all 0.3s}
+  .lyric.active{color:#fff;font-size:18px}
+
+  /* 播放模式按钮 */
+  .mode-btn{
+    background:rgba(255,255,255,0.1);border:none;color:#fff;
+    width:36px;height:36px;border-radius:50%;font-size:16px;
+    display:grid;place-items:center;cursor:pointer
+  }
+  .mode-btn:active{transform:scale(0.92)}
+  
+  /* 播放器底部 - 高层级 */
+  .player{
+    position:fixed;bottom:30px;width:90%;max-width:380px;
+    background:rgba(255,255,255,0.08);backdrop-filter:blur(20px);
+    border-radius:24px;padding:20px 24px;gap:12px;
+    display:flex;flex-direction:column;z-index:9999;
+  }
+  .title{font-size:15px;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+  
+  .progress-wrap{display:flex;align-items:center;gap:10px}
+  .progress-bar{
+    -webkit-appearance:none;appearance:none;
+    flex:1;height:4px;background:rgba(255,255,255,0.15);border-radius:3px;
+    outline:none;
+  }
+  .progress-bar::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:16px;height:16px;background:#fff;border-radius:50%;cursor:pointer;
+  }
+  .time{font-size:12px;color:rgba(255,255,255,0.7);min-width:42px;text-align:center}
+
+  .volume-wrap{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:4px}
+  .volume-bar{
+    -webkit-appearance:none;appearance:none;
+    width:90px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;
+    outline:none;
+  }
+  .volume-bar::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:12px;height:12px;background:#fff;border-radius:50%;cursor:pointer;
+  }
+
+  .controls{display:flex;justify-content:center;align-items:center;gap:16px;margin-top:6px}
+  .ctrl-btn{
+    background:rgba(255,255,255,0.1);border:none;color:#fff;
+    width:44px;height:44px;border-radius:50%;
+    display:grid;place-items:center;font-size:20px;cursor:pointer;
+    transition:all 0.2s;
+  }
+  .ctrl-btn:active{transform:scale(0.92)}
+  .play-btn{
+    background:linear-gradient(135deg,#4fc3f7,#2196f3);
+    width:56px;height:56px;font-size:26px;
+  }
+
+  .share-bar{
+    position:fixed;top:80px;left:50%;transform:translateX(-50%);
+    background:#409eff;padding:8px 16px;border-radius:12px;
+    display:none;align-items:center;gap:10px;z-index:99999;
+  }
+  .share-bar.show{display:flex}
+  .save-share-btn{background:#fff;color:#409eff;border:none;border-radius:6px;padding:4px 10px;font-weight:bold}
+
+  button{outline:none;border:none;-webkit-tap-highlight-color:transparent}
+</style>
+</head>
+<body>
+<div class="mask"></div>
+<div class="toast" id="toast"></div>
+
+<!-- 顶部4个核心按钮 - 独立层级，确保点击有效 -->
+<div class="top-btn-group">
+  <button class="top-btn" id="openMusicBtn">🎵 我的音乐</button>
+  <button class="top-btn" id="openGuideBtn">📖 使用教程</button>
+  <button class="top-btn" id="openFaqBtn">❓ 问题解释</button>
+  <button class="top-btn icon-btn" id="openSettingBtn">⚙️</button>
+</div>
+
+<!-- 分享提示条 -->
+<div class="share-bar" id="shareBar">
+  <span>检测到分享歌曲</span>
+  <button class="save-share-btn" id="saveShareBtn">保存到歌单</button>
+</div>
+
+<!-- 使用教程弹窗 -->
+<div class="modal" id="guideModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>📖 使用教程</h3>
+      <button class="close-modal" id="closeGuideBtn">✕</button>
+    </div>
+    <div class="guide-content">
+      <h4>一、如何找到本地音乐文件</h4>
+      <div class="step">
+        <p>✅ 安卓手机：文件管理 → 音乐 / 下载 / Audio 文件夹</p>
+        <p>✅ 苹果手机：文件APP → 浏览 → 下载项 / 音乐</p>
+        <p>✅ 电脑Windows：此电脑 → 音乐文件夹 / 下载文件夹</p>
+        <p>✅ 电脑Mac：访达 → 音乐 / 下载</p>
+      </div>
+      <h4>二、各大音乐平台下载目录</h4>
+      <div class="step">
+        <p>📁 网易云：Android/data/com.netease.cloudmusic/files/Music</p>
+        <p>📁 QQ音乐：Android/data/com.tencent.qqmusic/files/qqmusic/mp3</p>
+        <p>📁 酷狗：Android/data/com.kugou.android/files/kgmusic/download</p>
+        <p>📁 酷我：Android/data/com.kuwo.android/files/kuwo/music</p>
+        <p>📁 咪咕：Android/data/comcmcc.music/files/migu/download</p>
+      </div>
+      <h4>三、如何合法免费下载音乐</h4>
+      <div class="step">
+        <p>✅ 咪咕音乐大量正版免费歌曲</p>
+        <p>✅ 各平台免费专区、原创歌曲</p>
+        <p>✅ 公众版权、纯音乐免费曲库</p>
+      </div>
+      <h4>四、上传 & 播放操作</h4>
+      <div class="step">
+        <p>1. 点击「我的音乐」→「上传MP3歌曲」</p>
+        <p>2. 点击歌单里的歌曲名即可播放</p>
+        <p>3. 支持搜索、循环/单曲/随机播放</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 常见问题弹窗 -->
+<div class="modal" id="faqModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>❓ 常见问题</h3>
+      <button class="close-modal" id="closeFaqBtn">✕</button>
+    </div>
+    <div class="faq-content">
+      <div class="qa"><div class="q">1. 如何上传歌曲？</div><div class="a">点击「我的音乐」→「上传MP3歌曲」，选择本地音频文件即可。</div></div>
+      <div class="qa"><div class="q">2. 播放没声音怎么办？</div><div class="a">检查设备音量、播放器音量滑块，确认歌曲文件完整未损坏。</div></div>
+      <div class="qa"><div class="q">3. 进度条拖不动？</div><div class="a">先播放歌曲1秒，等文件加载完成后即可拖动跳转。</div></div>
+      <div class="qa"><div class="q">4. 如何更换背景？</div><div class="a">进入设置，可手动立即更换，也可设置自动切换间隔。</div></div>
+      <div class="qa"><div class="q">5. 歌曲会上传到服务器吗？</div><div class="a">不会，所有歌曲都保存在你的本地设备，纯本地运行。</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- 我的音乐歌单弹窗 -->
+<div class="modal" id="musicModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>本地音乐库</h3>
+      <button class="close-modal" id="closeMusicBtn">✕</button>
+    </div>
+    <button class="local-btn" id="uploadBtn">📁 上传MP3歌曲</button>
+    <input type="file" id="fileInput" accept="audio/*" multiple>
+    <input type="text" class="search-box" id="searchInput" placeholder="🔍 搜索歌曲">
+    <div class="section">✅ 已保存歌曲</div>
+    <div class="music-list" id="musicList"></div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal" id="settingModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>设置</h3>
+      <button class="close-modal" id="closeSettingBtn">✕</button>
+    </div>
+    <div class="about-desc">本地音乐播放器<br>纯本地运行 | 歌曲永久保存 | 无网络依赖</div>
+    <div class="setting-item" id="changeBgBtn">🔄 立即更换背景</div>
+    <div style="margin-top:10px;font-size:14px;color:#aaa;">自动换背景间隔</div>
+    <div class="bg-time-group">
+      <button class="bg-time-btn" data-time="0">关闭</button>
+      <button class="bg-time-btn" data-time="5">5秒</button>
+      <button class="bg-time-btn" data-time="10">10秒</button>
+      <button class="bg-time-btn" data-time="30">30秒</button>
+      <button class="bg-time-btn" data-time="60">1分钟</button>
+    </div>
+    <div class="setting-item" id="clearAllBtn">🗑️ 清空全部歌曲</div>
+    <button class="close-set" id="closeSetBtn">关闭设置</button>
+  </div>
+</div>
+
+<!-- 歌词显示区 -->
+<div class="lyric-box" id="lyricBox">
+  <div class="lyric active">等待播放本地音乐</div>
+</div>
+
+<!-- 底部播放器 -->
+<div class="player">
+  <div class="title" id="musicTitle">未播放</div>
+  <div class="progress-wrap">
+    <span class="time" id="currentTime">0:00</span>
+    <input type="range" class="progress-bar" id="progressBar" min="0" max="100" value="0">
+    <span class="time" id="totalTime">0:00</span>
+  </div>
+  <div class="volume-wrap">
+    <div class="volume-icon">🔊</div>
+    <input type="range" class="volume-bar" id="volumeBar" min="0" max="100" value="80">
+  </div>
+  <div class="controls">
+    <button class="mode-btn" id="modeBtn">🔁</button>
+    <button class="ctrl-btn" id="prevBtn">⏮</button>
+    <button class="ctrl-btn play-btn" id="playBtn">▶</button>
+    <button class="ctrl-btn" id="nextBtn">⏭</button>
+  </div>
+</div>
+
+<script>
+// ========== 全局变量 ==========
+const audio = new Audio()
+let currentIndex = Number(localStorage.getItem("lastPlayIndex")) || 0
+let currentLrc = []
+let localSongs = JSON.parse(localStorage.getItem("localMusicPlayer")) || []
+let currentShareSong = null
+let bgTimer = null
+let bgInterval = Number(localStorage.getItem("bgInterval")) || 0
+let playMode = localStorage.getItem("playMode") || "loop" // loop列表循环 / single单曲循环 / random随机
+let isUploading = false
+
+// 超大全高清背景库
+const bgList = [
+  "https://picsum.photos/id/1039/1920/1080","https://picsum.photos/id/1047/1920/1080","https://picsum.photos/id/1058/1920/1080","https://picsum.photos/id/1069/1920/1080","https://picsum.photos/id/1080/1920/1080",
+  "https://picsum.photos/id/160/1920/1080","https://picsum.photos/id/152/1920/1080","https://picsum.photos/id/15/1920/1080","https://picsum.photos/id/29/1920/1080","https://picsum.photos/id/36/1920/1080",
+  "https://picsum.photos/id/56/1920/1080","https://picsum.photos/id/65/1920/1080","https://picsum.photos/id/76/1920/1080","https://picsum.photos/id/87/1920/1080","https://picsum.photos/id/96/1920/1080",
+  "https://picsum.photos/id/116/1920/1080","https://picsum.photos/id/127/1920/1080","https://picsum.photos/id/138/1920/1080","https://picsum.photos/id/149/1920/1080","https://picsum.photos/id/175/1920/1080"
+]
+
+// 内置歌词库
+const lrcMap = {
+  "晴天":"[00:00.00]从前从前有个人爱你很久\n[00:03.00]偏偏风渐渐把距离吹得好远",
+  "七里香":"[00:00.00]窗外的麻雀 在电线杆上多嘴",
+  "孤勇者":"[00:00.00]都是勇敢的\n[00:02.00]你额头的伤口",
+  "小城夏天":"[00:00.00]橘黄色的日落 吞没在海平线"
+}
+
+// ========== 核心工具函数 ==========
+// Toast轻提示
+function toast(msg) {
+  const toastEl = document.getElementById("toast")
+  toastEl.textContent = msg
+  toastEl.classList.add("show")
+  setTimeout(() => toastEl.classList.remove("show"), 2000)
+}
+
+// 随机背景
+function setRandomBg() {
+  const randomIndex = Math.floor(Math.random() * bgList.length)
+  document.body.style.backgroundImage = `url(${bgList[randomIndex]})`
+}
+
+// 自动换背景定时器
+function startBgTimer(seconds) {
+  clearInterval(bgTimer)
+  if (seconds > 0) {
+    bgTimer = setInterval(setRandomBg, seconds * 1000)
+  }
+}
+
+// 时间格式化
+function formatTime(time) {
+  const minutes = Math.floor(time / 60)
+  const seconds = Math.floor(time % 60)
+  return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`
+}
+
+// 保存歌单到本地
+function saveLibrary() {
+  localStorage.setItem("localMusicPlayer", JSON.stringify(localSongs))
+}
+
+// 文件转base64
+function fileToBase64(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.readAsDataURL(file)
+  })
+}
+
+// 歌词解析
+function parseLrc(text) {
+  return text.split("\n").map(line => {
+    const match = line.match(/\[(\d+):(\d+\.\d+)\](.*)/)
+    return match ? { time: match[1] * 60 + parseFloat(match[2]), text: match[3].trim() } : null
+  }).filter(Boolean)
+}
+
+// 渲染歌词
+function renderLrc() {
+  const lyricBox = document.getElementById("lyricBox")
+  lyricBox.innerHTML = ""
+  currentLrc.forEach(item => {
+    const div = document.createElement("div")
+    div.className = "lyric"
+    div.innerText = item.text
+    lyricBox.appendChild(div)
+  })
+}
+
+// 更新歌词高亮
+function updateLrc() {
+  const currentTime = audio.currentTime
+  const activeIndex = currentLrc.findLastIndex(item => item.time <= currentTime)
+  document.querySelectorAll(".lyric").forEach((el, i) => {
+    el.classList.toggle("active", i === activeIndex)
+  })
+  const activeEl = document.querySelector(".lyric.active")
+  if (activeEl) activeEl.scrollIntoView({ behavior: "smooth", block: "center" })
+}
+
+// 获取匹配歌词
+function getLrc(songName) {
+  const name = songName.replace(/\.\w+$/, "").trim()
+  for (let key in lrcMap) {
+    if (name.includes(key) || key.includes(name)) return lrcMap[key]
+  }
+  return "[00:00.00]暂无歌词"
+}
+
+// 播放歌曲
+function play(index) {
+  if (!localSongs.length) {
+    toast("暂无歌曲，请先上传")
+    return
+  }
+  // 停止当前播放
+  audio.pause()
+  // 修正索引
+  currentIndex = Math.max(0, Math.min(index, localSongs.length - 1))
+  localStorage.setItem("lastPlayIndex", currentIndex)
+  // 获取歌曲
+  const song = localSongs[currentIndex]
+  // 设置音频
+  audio.src = song.base64
+  document.getElementById("musicTitle").innerText = song.name
+  // 处理歌词
+  currentLrc = parseLrc(getLrc(song.name))
+  renderLrc()
+  // 加载并播放
+  audio.load()
+  audio.play().catch(() => toast("播放失败，请检查文件"))
+  document.getElementById("playBtn").innerText = "⏸"
+  // 关闭所有弹窗
+  document.querySelectorAll(".modal").forEach(modal => modal.classList.remove("show"))
+  document.getElementById("shareBar").classList.remove("show")
+}
+
+// 渲染歌单
+function renderList(keyword = "") {
+  const musicList = document.getElementById("musicList")
+  musicList.innerHTML = ""
+  // 搜索过滤
+  const filteredSongs = localSongs.filter(song => 
+    song.name.toLowerCase().includes(keyword.toLowerCase())
+  )
+  // 空状态
+  if (!filteredSongs.length) {
+    musicList.innerHTML = `<div style="padding:10px;color:#aaa;text-align:center;">暂无匹配歌曲</div>`
+    return
+  }
+  // 渲染列表
+  filteredSongs.forEach((song) => {
+    const realIndex = localSongs.findIndex(s => s.name === song.name)
+    // 歌曲项
+    const item = document.createElement("div")
+    item.className = "music-item"
+    // 歌曲名
+    const nameSpan = document.createElement("span")
+    nameSpan.className = song.name.length > 15 ? "music-name scroll" : "music-name"
+    nameSpan.innerText = song.name
+    nameSpan.onclick = () => play(realIndex)
+    // 按钮组
+    const btnGroup = document.createElement("div")
+    btnGroup.className = "btn-group"
+    // 分享按钮
+    const shareBtn = document.createElement("button")
+    shareBtn.className = "share-btn"
+    shareBtn.innerText = "分享"
+    shareBtn.onclick = (e) => {
+      e.stopPropagation()
+      try {
+        const data = JSON.stringify({ name: song.name, base64: song.base64 })
+        const shareUrl = location.origin + location.pathname + "#" + encodeURIComponent(data)
+        navigator.clipboard.writeText(shareUrl).then(() => toast("分享链接已复制"))
+      } catch (e) {
+        toast("分享失败")
+      }
+    }
+    // 删除按钮 - 修复了变量名错误
+    const delBtn = document.createElement("button")
+    delBtn.className = "del-btn"
+    delBtn.innerText = "删除"
+    delBtn.onclick = (e) => {
+      e.stopPropagation()
+      if (!confirm("确定删除这首歌？删除后无法恢复！")) return
+      // 如果删除的是当前播放的歌曲
+      if (realIndex === currentIndex) {
+        audio.pause()
+        audio.src = ""
+        document.getElementById("musicTitle").innerText = "未播放"
+        document.getElementById("playBtn").innerText = "▶"
+        document.getElementById("lyricBox").innerHTML = `<div class="lyric active">等待播放本地音乐</div>`
+      }
+      // 删除歌曲
+      localSongs.splice(realIndex, 1)
+      if (currentIndex > 0 && realIndex <= currentIndex) currentIndex--
+      saveLibrary()
+      renderList(keyword)
+      toast("已删除歌曲")
+    }
+    // 组装
+    btnGroup.appendChild(shareBtn)
+    btnGroup.appendChild(delBtn)
+    item.appendChild(nameSpan)
+    item.appendChild(btnGroup)
+    musicList.appendChild(item)
+  })
+}
+
+// 切歌逻辑
+function nextSong() {
+  if (!localSongs.length) return
+  if (playMode === "random") {
+    currentIndex = Math.floor(Math.random() * localSongs.length)
+  } else if (playMode === "single") {
+    audio.currentTime = 0
+    audio.play().catch(() => {})
+    return
+  } else {
+    currentIndex = (currentIndex + 1) % localSongs.length
+  }
+  play(currentIndex)
+}
+
+// 更新播放模式按钮
+function updateModeBtn() {
+  const modeBtn = document.getElementById("modeBtn")
+  if (playMode === "loop") modeBtn.textContent = "🔁"
+  if (playMode === "single") modeBtn.textContent = "🔂"
+  if (playMode === "random") modeBtn.textContent = "🔀"
+}
+
+// 解析分享链接
+function loadShareData() {
+  if (!location.hash) return
+  try {
+    const data = JSON.parse(decodeURIComponent(location.hash.slice(1)))
+    currentShareSong = data
+    audio.src = data.base64
+    document.getElementById("musicTitle").innerText = "[分享]" + data.name
+    audio.play().catch(() => {})
+    document.getElementById("playBtn").innerText = "⏸"
+    document.getElementById("shareBar").classList.add("show")
+    history.replaceState(null, null, " ")
+  } catch (e) {}
+}
+
+// ========== DOM加载完成后，绑定所有按钮事件 ==========
+document.addEventListener("DOMContentLoaded", () => {
+  // ========== 1. 顶部核心按钮 - 100%生效 ==========
+  // 我的音乐 - 修复了渲染列表前的逻辑问题
+  const openMusicBtn = document.getElementById("openMusicBtn")
+  const closeMusicBtn = document.getElementById("closeMusicBtn")
+  const musicModal = document.getElementById("musicModal")
+  openMusicBtn.onclick = () => {
+    renderList("") // 确保先渲染空搜索结果，避免错误
+    musicModal.classList.add("show")
+    toast("我的音乐已打开") // 添加调试提示，确认按钮正常触发
+  }
+  closeMusicBtn.onclick = () => musicModal.classList.remove("show")
+  musicModal.onclick = (e) => {
+    if (e.target === musicModal) musicModal.classList.remove("show")
+  }
+
+  // 使用教程
+  const openGuideBtn = document.getElementById("openGuideBtn")
+  const closeGuideBtn = document.getElementById("closeGuideBtn")
+  const guideModal = document.getElementById("guideModal")
+  openGuideBtn.onclick = () => guideModal.classList.add("show")
+  closeGuideBtn.onclick = () => guideModal.classList.remove("show")
+  guideModal.onclick = (e) => {
+    if (e.target === guideModal) guideModal.classList.remove("show")
+  }
+
+  // 问题解释
+  const openFaqBtn = document.getElementById("openFaqBtn")
+  const closeFaqBtn = document.getElementById("closeFaqBtn")
+  const faqModal = document.getElementById("faqModal")
+  openFaqBtn.onclick = () => faqModal.classList.add("show")
+  closeFaqBtn.onclick = () => faqModal.classList.remove("show")
+  faqModal.onclick = (e) => {
+    if (e.target === faqModal) faqModal.classList.remove("show")
+  }
+
+  // 设置
+  const openSettingBtn = document.getElementById("openSettingBtn")
+  const closeSettingBtn = document.getElementById("closeSettingBtn")
+  const settingModal = document.getElementById("settingModal")
+  const closeSetBtn = document.getElementById("closeSetBtn")
+  openSettingBtn.onclick = () => settingModal.classList.add("show")
+  closeSettingBtn.onclick = () => settingModal.classList.remove("show")
+  closeSetBtn.onclick = () => settingModal.classList.remove("show")
+  settingModal.onclick = (e) => {
+    if (e.target === settingModal) settingModal.classList.remove("show")
+  }
+
+  // ========== 2. 歌单内按钮 ==========
+  // 上传歌曲
+  const uploadBtn = document.getElementById("uploadBtn")
+  const fileInput = document.getElementById("fileInput")
+  uploadBtn.onclick = () => {
+    if (isUploading) {
+      toast("正在上传中，请稍候")
+      return
+    }
+    fileInput.click()
+  }
+  fileInput.onchange = async (e) => {
+    isUploading = true
+    toast("正在上传歌曲...")
+    const files = Array.from(e.target.files)
+    let successCount = 0
+    for (const file of files) {
+      if (!file.type.includes("audio") || localSongs.some(s => s.name === file.name)) continue
+      try {
+        const base64 = await fileToBase64(file)
+        localSongs.push({ name: file.name, base64: base64 })
+        successCount++
+      } catch (e) {
+        continue
+      }
+    }
+    saveLibrary()
+    renderList(document.getElementById("searchInput").value.trim())
+    isUploading = false
+    toast(successCount > 0 ? `成功上传${successCount}首歌曲` : "上传失败，文件已存在或格式不支持")
+  }
+
+  // 搜索歌曲
+  const searchInput = document.getElementById("searchInput")
+  searchInput.oninput = () => renderList(searchInput.value.trim())
+
+  // ========== 3. 设置内按钮 ==========
+  // 立即换背景
+  const changeBgBtn = document.getElementById("changeBgBtn")
+  changeBgBtn.onclick = () => {
+    setRandomBg()
+    settingModal.classList.remove("show")
+    toast("已更换背景")
+  }
+
+  // 自动换背景时间
+  const bgTimeBtns = document.querySelectorAll(".bg-time-btn")
+  bgTimeBtns.forEach(btn => {
+    btn.onclick = () => {
+      bgTimeBtns.forEach(b => b.classList.remove("active"))
+      btn.classList.add("active")
+      bgInterval = Number(btn.dataset.time)
+      localStorage.setItem("bgInterval", bgInterval)
+      startBgTimer(bgInterval)
+      toast(`已设置：${bgInterval === 0 ? '关闭自动换背景' : bgInterval + '秒'}`)
+    }
+  })
+
+  // 清空全部歌曲
+  const clearAllBtn = document.getElementById("clearAllBtn")
+  clearAllBtn.onclick = () => {
+    if (!confirm("确定清空所有歌曲？此操作不可恢复！")) return
+    localSongs = []
+    saveLibrary()
+    renderList()
+    audio.pause()
+    audio.src = ""
+    document.getElementById("musicTitle").innerText = "未播放"
+    document.getElementById("playBtn").innerText = "▶"
+    document.getElementById("lyricBox").innerHTML = `<div class="lyric active">等待播放本地音乐</div>`
+    settingModal.classList.remove("show")
+    toast("已清空全部歌曲")
+  }
+
+  // ========== 4. 播放器控制按钮 ==========
+  // 播放/暂停
+  const playBtn = document.getElementById("playBtn")
+  playBtn.onclick = async () => {
+    if (!audio.src) {
+      if (localSongs.length) {
+        play(currentIndex)
+      } else {
+        toast("暂无歌曲，请先上传")
+      }
+      return
+    }
+    if (audio.paused) {
+      await audio.play()
+      playBtn.innerText = "⏸"
+    } else {
+      audio.pause()
+      playBtn.innerText = "▶"
+    }
+  }
+
+  // 上一曲
+  const prevBtn = document.getElementById("prevBtn")
+  prevBtn.onclick = () => {
+    if (!localSongs.length) {
+      toast("暂无歌曲")
+      return
+    }
+    currentIndex = (currentIndex - 1 + localSongs.length) % localSongs.length
+    play(currentIndex)
+  }
+
+  // 下一曲
+  const nextBtn = document.getElementById("nextBtn")
+  nextBtn.onclick = () => nextSong()
+
+  // 播放模式切换
+  const modeBtn = document.getElementById("modeBtn")
+  modeBtn.onclick = () => {
+    if (playMode === "loop") playMode = "single"
+    else if (playMode === "single") playMode = "random"
+    else playMode = "loop"
+    localStorage.setItem("playMode", playMode)
+    updateModeBtn()
+    if (playMode === "loop") toast("列表循环")
+    if (playMode === "single") toast("单曲循环")
+    if (playMode === "random") toast("随机播放")
+  }
+
+  // ========== 5. 进度条 & 音量条 ==========
+  const progressBar = document.getElementById("progressBar")
+  const currentTimeEl = document.getElementById("currentTime")
+  const totalTimeEl = document.getElementById("totalTime")
+  const volumeBar = document.getElementById("volumeBar")
+
+  // 进度条拖动
+  progressBar.addEventListener("input", () => {
+    if (!audio.duration) return
+    audio.currentTime = audio.duration * (progressBar.value / 100)
+    currentTimeEl.innerText = formatTime(audio.currentTime)
+  })
+
+  // 音量调节
+  volumeBar.addEventListener("input", () => {
+    audio.volume = volumeBar.value / 100
+    localStorage.setItem("volume", volumeBar.value)
+  })
+
+  // 音频事件同步
+  audio.ontimeupdate = () => {
+    if (!audio.duration) return
+    const percent = (audio.currentTime / audio.duration) * 100
+    progressBar.value = percent
+    currentTimeEl.innerText = formatTime(audio.currentTime)
+    updateLrc()
+  }
+  audio.onloadedmetadata = () => {
+    totalTimeEl.innerText = formatTime(audio.duration)
+  }
+  audio.onended = () => nextSong()
+
+  // ========== 6. 分享保存按钮 ==========
+  const saveShareBtn = document.getElementById("saveShareBtn")
+  saveShareBtn.onclick = () => {
+    if (!currentShareSong) return
+    if (localSongs.some(s => s.name === currentShareSong.name)) {
+      toast("歌单中已存在该歌曲")
+      return
+    }
+    localSongs.push(currentShareSong)
+    saveLibrary()
+    renderList()
+    document.getElementById("shareBar").classList.remove("show")
+    toast("保存成功！")
+  }
+
+  // ========== 初始化 ==========
+  setRandomBg()
+  // 加载背景设置
+  bgTimeBtns.forEach(btn => {
+    if (Number(btn.dataset.time) === bgInterval) btn.classList.add("active")
+  })
+  startBgTimer(bgInterval)
+  // 加载音量设置
+  const savedVolume = Number(localStorage.getItem("volume")) || 80
+  volumeBar.value = savedVolume
+  audio.volume = savedVolume / 100
+  // 更新播放模式
+  updateModeBtn()
+  // 加载分享数据
+  loadShareData()
+  // 自动播放上次歌曲
+  if (localSongs.length && currentIndex < localSongs.length) {
+    const lastSong = localSongs[currentIndex]
+    audio.src = lastSong.base64
+    document.getElementById("musicTitle").innerText = lastSong.name
+    currentLrc = parseLrc(getLrc(lastSong.name))
+    renderLrc()
+  }
+})
+</script>
+
+<!-- 防小白加密：禁止右键 + 禁止F12 + 禁止查看源码 -->
+<script>
+// 禁止右键菜单
+document.oncontextmenu = function () {
+    return false;
+};
+// 禁止F12、Ctrl+Shift+I、Ctrl+U
+document.onkeydown = function (e) {
+    if (e.key === "F12" || 
+        (e.ctrlKey && e.shiftKey && e.key === "I") || 
+        (e.ctrlKey && e.key === "U")) {
+        return false;
+    }
+};
+</script>
+</body>
+</html>

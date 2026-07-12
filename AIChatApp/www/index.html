@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1, width=device-width, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <link rel="stylesheet" href="css/index.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>AI Chat</title>
+</head>
+<body>
+    <div class="app">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h1><i class="fas fa-robot"></i> AI Chat</h1>
+                <button id="settingsBtn" class="settings-button"><i class="fas fa-cog"></i></button>
+            </div>
+            <div id="messagesContainer" class="messages-container"></div>
+            <div class="input-container">
+                <input id="messageInput" type="text" placeholder="输入消息..." autocomplete="off">
+                <button id="sendButton" class="send-button"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+    <script src="cordova.js"></script>
+    <script src="js/index.js"></script>
+</body>
+</html>

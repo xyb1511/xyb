@@ -17,7 +17,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:text=".."
-            style="@style/Widget.Material3.Button.Text" />
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
 
         <TextView
             android:id="@+id/tvCurrentPath"

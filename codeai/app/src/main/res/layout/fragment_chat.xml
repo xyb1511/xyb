@@ -12,7 +12,7 @@
         android:layout_height="?attr/actionBarSize"
         app:title="AI 编程"
         app:menu="@menu/chat_toolbar_menu"
-        style="@style/Widget.Material3.Toolbar" />
+        style="@style/Widget.MaterialComponents.Toolbar" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvMessages"
@@ -28,7 +28,7 @@
         android:layout_height="wrap_content"
         android:indeterminate="true"
         android:visibility="gone"
-        style="@style/Widget.Material3.LinearProgressIndicator" />
+        style="@style/Widget.MaterialComponents.LinearProgressIndicator" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -54,7 +54,7 @@
             android:layout_height="wrap_content"
             android:text="发送"
             android:layout_marginStart="8dp"
-            style="@style/Widget.Material3.Button" />
+            style="@style/Widget.MaterialComponents.Button" />
 
     </LinearLayout>
 

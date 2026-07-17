@@ -23,7 +23,7 @@ public class MainActivity extends AppCompatActivity implements ProjectListFragme
         settingsFragment = new SettingsFragment();
 
         bottomAppBar = findViewById(R.id.bottomAppBar);
-        bottomAppBar.setOnItemSelectedListener(item -> {
+        bottomAppBar.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == R.id.projectListFragment) {
                 showFragment(projectListFragment);

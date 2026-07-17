@@ -80,7 +80,11 @@ public class FileSystemManager {
 
         for (File file : files) {
             if (file.getName().startsWith(".") || file.getName().equals("build")) continue;
-            String indent = "  ".repeat(depth);
+            StringBuilder indentBuilder = new StringBuilder();
+            for (int i = 0; i < depth; i++) {
+                indentBuilder.append("  ");
+            }
+            String indent = indentBuilder.toString();
             if (file.isDirectory()) {
                 sb.append(indent).append("[").append(file.getName()).append("]\n");
                 appendDirTree(sb, file, depth + 1, maxDepth);

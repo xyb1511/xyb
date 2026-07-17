@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         app:tabMode="fixed"
         app:tabGravity="fill"
-        style="@style/Widget.Material3.TabLayout" />
+        style="@style/Widget.MaterialComponents.TabLayout" />
 
     <FrameLayout
         android:id="@+id/fragmentContainer"

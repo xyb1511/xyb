@@ -15,6 +15,7 @@ import com.gpt.code.data.entity.ChatSessionEntity;
 import com.gpt.code.project.Project;
 import com.gpt.code.project.ProjectRepository;
 import com.gpt.code.ui.workspace.FileSystemManager.FileItem;
+import androidx.lifecycle.Observer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -135,35 +136,47 @@ public class WorkspaceViewModel extends AndroidViewModel {
 
         // Track AI response
         final StringBuilder aiResponse = new StringBuilder();
-        contentLiveData.observeForever(chunk -> {
-            if (chunk != null) {
-                aiResponse.append(chunk);
-            }
-        });
-
-        loadingLiveData.observeForever(loading -> {
-            if (!loading && aiResponse.length() > 0) {
-                List<ChatMessageEntity> msgs = messagesLiveData.getValue();
-                if (msgs == null) msgs = new ArrayList<>();
-                ChatMessageEntity aiMsg = new ChatMessageEntity(
-                        currentSessionId > 0 ? currentSessionId : 0,
-                        "assistant", aiResponse.toString());
-                msgs.add(aiMsg);
-                messagesLiveData.postValue(msgs);
-                if (currentSessionId > 0) {
-                    chatRepository.insertMessage(aiMsg);
+        final Observer<String> contentObserver = new Observer<String>() {
+            @Override
+            public void onChanged(String chunk) {
+                if (chunk != null) {
+                    aiResponse.append(chunk);
                 }
-                loadingLiveData.removeObserver(this);
-                contentLiveData.removeObserver(chunk -> {});
             }
-        });
+        };
+        contentLiveData.observeForever(contentObserver);
 
-        errorLiveData.observeForever(error -> {
-            if (error != null) {
-                loadingLiveData.postValue(false);
-                errorLiveData.removeObserver(this);
+        final Observer<Boolean> loadingObserver = new Observer<Boolean>() {
+            @Override
+            public void onChanged(Boolean loading) {
+                if (!loading && aiResponse.length() > 0) {
+                    List<ChatMessageEntity> msgs = messagesLiveData.getValue();
+                    if (msgs == null) msgs = new ArrayList<>();
+                    ChatMessageEntity aiMsg = new ChatMessageEntity(
+                            currentSessionId > 0 ? currentSessionId : 0,
+                            "assistant", aiResponse.toString());
+                    msgs.add(aiMsg);
+                    messagesLiveData.postValue(msgs);
+                    if (currentSessionId > 0) {
+                        chatRepository.insertMessage(aiMsg);
+                    }
+                    loadingLiveData.removeObserver(this);
+                    contentLiveData.removeObserver(contentObserver);
+                }
             }
-        });
+        };
+        loadingLiveData.observeForever(loadingObserver);
+
+        final Observer<String> errorObserver = new Observer<String>() {
+            @Override
+            public void onChanged(String error) {
+                if (error != null) {
+                    loadingLiveData.postValue(false);
+                    errorLiveData.removeObserver(this);
+                }
+            }
+        };
+        errorLiveData.observeForever(errorObserver);
     }
 
     // --- File Explorer ---
